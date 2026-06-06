@@ -1,0 +1,16 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: reservify_db
+    environment:
+      MYSQL_DATABASE: reservify
+      MYSQL_USER: reservify
+      MYSQL_PASSWORD: secret
+      MYSQL_ROOT_PASSWORD: rootsecret
+    ports:
+      - "3307:3306"
+    volumes:
+      - reservify_db:/var/lib/mysql
+
+volumes:
+  reservify_db:
