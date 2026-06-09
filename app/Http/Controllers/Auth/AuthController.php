@@ -3,104 +3,95 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Models\User;
 use App\Models\Tenant;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
-    /**
-     * Registro de nuevo cliente dentro de un tenant.
-     * El tenant ya fue resuelto por IdentifyTenant antes de llegar aquí.
-     */
     public function register(Request $request)
     {
-        $data = $request->validate([
-            'name'     => 'required|string|max:150',
-            'email'    => 'required|email|max:200',
-            'password' => 'required|string|min:8|confirmed',
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email',
+            'password' => 'required|string|min:6|confirmed',
         ]);
 
-        // Verificar que el email no exista ya en este tenant
-        $exists = User::where('email', $data['email'])->exists();
-
-        if ($exists) {
+        // Obtener el tenant del request
+        $tenant = app('current_tenant');
+        if (!$tenant) {
             return response()->json([
-                'error' => 'Este email ya está registrado en este negocio.',
-                'code'  => 'EMAIL_TAKEN',
-            ], 422);
+                'message' => 'Tenant no identificado',
+            ], 400);
         }
 
-        // BelongsToTenant inyecta tenant_id automáticamente al crear
+        // Crear usuario con role cliente
         $user = User::create([
-            'name'     => $data['name'],
-            'email'    => $data['email'],
-            'password' => $data['password'], // el cast 'hashed' lo encripta solo
-            'role'     => 'client',
+            'tenant_id' => $tenant->id,
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'password' => Hash::make($validated['password']),
+            'role' => 'client',
         ]);
 
+        // Generar token
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
-            'user'  => $user,
+            'user' => $user,
             'token' => $token,
         ], 201);
     }
 
-    /**
-     * Login — verifica email y password dentro del tenant actual.
-     */
     public function login(Request $request)
-    {
-        $data = $request->validate([
-            'email'    => 'required|email',
-            'password' => 'required|string',
-        ]);
+{
+    $validated = $request->validate([
+        'email' => 'required|email',
+        'password' => 'required|string',
+    ]);
 
-        // User::where() ya filtra por tenant_id gracias al TenantScope
-        $user = User::where('email', $data['email'])->first();
+    \Log::info('Login intento', [
+        'email' => $validated['email'],
+        'tenant' => app('current_tenant')?->slug ?? 'null'
+    ]);
 
-        if (! $user || ! Hash::check($data['password'], $user->password)) {
-            return response()->json([
-                'error' => 'Credenciales incorrectas.',
-                'code'  => 'INVALID_CREDENTIALS',
-            ], 401);
-        }
+    $user = User::where('email', $validated['email'])->first();
 
-        if (! $user->is_active) {
-            return response()->json([
-                'error' => 'Usuario inactivo.',
-                'code'  => 'USER_INACTIVE',
-            ], 403);
-        }
+    \Log::info('Usuario encontrado?', [
+        'user' => $user ? $user->id : 'null',
+        'email' => $validated['email']
+    ]);
 
-        // Revocar tokens anteriores — un usuario, un token activo
-        $user->tokens()->delete();
-
-        $token = $user->createToken('auth_token')->plainTextToken;
-
+    if (!$user) {
+        \Log::warning('Usuario no encontrado para email', ['email' => $validated['email']]);
         return response()->json([
-            'user'  => $user,
-            'token' => $token,
-        ]);
+            'message' => 'Credenciales inválidas',
+        ], 401);
     }
 
-    /**
-     * Logout — invalida el token actual.
-     */
+    if (!Hash::check($validated['password'], $user->password)) {
+        \Log::warning('Contraseña incorrecta para', ['email' => $validated['email']]);
+        return response()->json([
+            'message' => 'Credenciales inválidas',
+        ], 401);
+    }
+
+    $token = $user->createToken('auth_token')->plainTextToken;
+
+    return response()->json([
+        'user' => $user,
+        'token' => $token,
+    ]);
+}
+
     public function logout(Request $request)
     {
         $request->user()->currentAccessToken()->delete();
 
-        return response()->json([
-            'message' => 'Sesión cerrada correctamente.',
-        ]);
+        return response()->json(['message' => 'Logged out']);
     }
 
-    /**
-     * Devuelve el usuario autenticado actual.
-     */
     public function me(Request $request)
     {
         return response()->json($request->user());
