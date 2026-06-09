@@ -25,7 +25,7 @@ class IdentifyTenant
         if (!$tenant && app()->environment('local')) {
             $slug = $request->header('X-Tenant-Slug');
             if ($slug) {
-                $tenant = Tenant::where('slug', $slug)->first();
+                $tenant = Tenant::where('slug', $slug)->orWhere('id', $slug)->first();
             }
         }
 
