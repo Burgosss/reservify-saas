@@ -21,11 +21,13 @@ class IdentifyTenant
                         ->where('is_active', true)
                         ->first();
 
-        // Fallback para desarrollo local: header X-Tenant-Slug
-        if (!$tenant && app()->environment('local')) {
+        // Fallback para hosts sin subdominio de tenant, como una IP o api.tudominio.com.
+        if (!$tenant) {
             $slug = $request->header('X-Tenant-Slug');
             if ($slug) {
-                $tenant = Tenant::where('slug', $slug)->orWhere('id', $slug)->first();
+                $tenant = Tenant::where('slug', $slug)
+                    ->where('is_active', true)
+                    ->first();
             }
         }
 
