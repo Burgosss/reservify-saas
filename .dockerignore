@@ -1,0 +1,17 @@
+.git
+.gitignore
+README.md
+README_BACKEND.md
+.env.example
+.env
+node_modules
+npm-debug.log
+.DS_Store
+.vscode
+.idea
+*.log
+.docker
+.pytest_cache
+.phpunit.result.cache
+storage/logs/*
+bootstrap/cache/*
