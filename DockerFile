@@ -1,0 +1,45 @@
+FROM php:8.3-fpm-alpine
+
+# 1. Instalar dependencias del sistema operativo (Librerías C)
+RUN apk add --no-cache \
+    libzip-dev \
+    libpng-dev \
+    oniguruma-dev \
+    zip \
+    unzip \
+    git \
+    curl
+
+# 2. Compilar e instalar extensiones de PHP
+RUN docker-php-ext-install \
+    pdo_mysql \
+    zip \
+    gd \
+    bcmath \
+    mbstring \
+    opcache
+
+# 3. Inyectar Composer desde su imagen oficial
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+WORKDIR /var/www/html
+
+# 4. Aprovechar la caché de Docker copiando solo dependencias primero
+COPY composer.json composer.lock ./
+
+# 5. Instalar dependencias sin ejecutar scripts automáticos aún
+RUN composer install --no-dev --no-scripts --prefer-dist
+
+# 6. Copiar el resto del código de Laravel
+COPY --chown=www-data:www-data . .
+
+# 7. Generar el autoloader optimizado
+RUN composer dump-autoload --optimize
+
+# 8. Cambio al usuario sin privilegios
+USER www-data
+
+# PHP-FPM expone el puerto 9000 por defecto
+EXPOSE 9000
+
+CMD ["php-fpm"]
