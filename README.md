@@ -227,7 +227,7 @@ bootstrap/
 
 ---
 
-## 📋 Endpoints Principales
+## Endpoints Principales
 
 ### Autenticación
 
